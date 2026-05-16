@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# =============================================
+# IMPORTANT: Secret files - NEVER push these!
+# =============================================
+.env
+serviceAccountKey.json
+*.pem
+*.key
+
+# Database & Logs
+ai_memory_db/
+my_ai_memory/
+my_vector_db/
+system_logs.txt
+
+# macOS
+.DS_Store

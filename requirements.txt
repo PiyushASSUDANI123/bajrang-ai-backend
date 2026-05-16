@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+requests
+python-dotenv
+groq
+firebase-admin
+beautifulsoup4
+aiohttp
+python-multipart
+numpy
+pytz
+
