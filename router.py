@@ -43,16 +43,19 @@ GREETING_KEYWORDS = [
 ]
 
 def _url_check(user_prompt: str):
-    """Fast URL detector — if a URL is present, route to URL_ANALYSIS."""
+    """Fast URL detector — if a URL is the ONLY thing present, route to URL_ANALYSIS."""
     urls = URL_PATTERN.findall(user_prompt)
     if urls:
-        print(f"🔗 URL detected: {urls[0]} → URL_ANALYSIS")
-        return {
-            "intent": "URL_ANALYSIS",
-            "reason": f"URL found: {urls[0]}",
-            "urls": urls,
-            "search_query": ""
-        }
+        # If it is a raw URL (only the URL, allowing slight surrounding whitespace/quotes/brackets)
+        cleaned = user_prompt.strip().strip('"\'[]()<>`')
+        if cleaned == urls[0]:
+            print(f"🔗 Raw URL detected: {urls[0]} → URL_ANALYSIS")
+            return {
+                "intent": "URL_ANALYSIS",
+                "reason": f"URL found: {urls[0]}",
+                "urls": urls,
+                "search_query": ""
+            }
     return None
 
 
@@ -136,16 +139,18 @@ def ai_router(user_prompt, conversation_history=[]):
     system_prompt = f"""You are a high-speed intent classifier. Output ONLY raw JSON.
 
 INTENT RULES:
-1. LOCAL_DB    → Questions about Piyush Assudani, Assudani Group, personal business data, Tiflo AI itself.
-2. WEB_SEARCH  → News, scores, current events, general web search.
-3. AGENT       → Math calculations, running/debugging code, executing Python, checking crypto rates (e.g. BTC, ETH), fetching weather using tools.
-4. CHIT_CHAT   → Greetings, opinions, general conversation, writing help, explanations (no math/code execution needed).
+1. LOCAL_DB     → Questions about Piyush Assudani, Assudani Group, personal business data, Tiflo AI itself.
+2. WEB_SEARCH   → News, scores, current events, general web search.
+3. AGENT        → Math calculations, running/debugging code, executing Python, checking crypto rates (e.g. BTC, ETH), fetching weather using tools.
+4. URL_ANALYSIS → When the user explicitly asks to read, analyze, scrape, summarize, or extract information from one or more provided URLs.
+5. CHIT_CHAT    → Greetings, opinions, general conversation, writing help, explanations (no math/code execution needed).
 
 RULES:
 - Fix typos automatically in search_query.
 - Resolve pronouns using context.
 - When in doubt between WEB_SEARCH and CHIT_CHAT → choose WEB_SEARCH.
 - When user asks to CALCULATE, RUN CODE, check CRYPTO RATES, or check WEATHER → always choose AGENT.
+- When user provides a URL AND asks a specific question about it, choose URL_ANALYSIS.
 - Output ONLY JSON, no markdown, no explanation.
 
 EXAMPLES:
@@ -155,6 +160,7 @@ EXAMPLES:
 {{"intent": "LOCAL_DB", "reason": "founder info", "search_query": ""}}
 {{"intent": "AGENT", "reason": "math calculation", "search_query": ""}}
 {{"intent": "AGENT", "reason": "code execution", "search_query": ""}}
+{{"intent": "URL_ANALYSIS", "reason": "summarize link", "search_query": ""}}
 
 CONTEXT:
 {context_snippet}
