@@ -1,5 +1,5 @@
 """
-finetune_collector.py — Bajrang AI Fine-tune Data Pipeline
+finetune_collector.py — Tiflo AI Fine-tune Data Pipeline
 ===========================================================
 Collects high-quality Q&A pairs from ChromaDB conversations,
 formats them as JSONL for fine-tuning on Together AI / OpenPipe / HuggingFace.
@@ -19,7 +19,7 @@ from datetime import datetime
 
 DB_PATH      = "./ai_memory_db"
 OUTPUT_FILE  = "finetune_data.jsonl"
-SYSTEM_MSG   = "You are BAJRANG AI — a raw, direct, no-filter intelligence engine built by Piyush Assudani, CEO of The Assudani Group."
+SYSTEM_MSG   = "You are TIFLO AI — a raw, direct, no-filter intelligence engine built by Piyush Assudani, CEO of The Assudani Group."
 
 
 def extract_qa(doc: str):
@@ -100,7 +100,7 @@ def export(min_response_len: int = 30, max_records: int = 5000):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Export Bajrang AI fine-tune data")
+    parser = argparse.ArgumentParser(description="Export Tiflo AI fine-tune data")
     parser.add_argument("--min-len",  type=int, default=30,   help="Minimum response length")
     parser.add_argument("--max",      type=int, default=5000, help="Max records to export")
     args = parser.parse_args()

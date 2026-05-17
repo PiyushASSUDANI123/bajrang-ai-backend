@@ -10,4 +10,5 @@ aiohttp
 python-multipart
 numpy
 pytz
-
+duckduckgo_search
+slowapi

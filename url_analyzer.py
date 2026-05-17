@@ -1,5 +1,5 @@
 """
-url_analyzer.py — Bajrang AI URL / Link Analyzer
+url_analyzer.py — Tiflo AI URL / Link Analyzer
 ==================================================
 Fetches any URL, extracts clean content, and sends to Groq for analysis.
 Handles: articles, product pages, GitHub repos, YouTube, news, docs, etc.
@@ -155,7 +155,7 @@ async def analyze_url(url: str, user_question: str = "") -> str:
     # Build analysis prompt
     specific_q = f"\n\nUser's specific question: {user_question}" if user_question else ""
 
-    prompt = f"""You are BAJRANG AI analyzing a webpage for the user.
+    prompt = f"""You are TIFLO AI analyzing a webpage for the user.
 
 PAGE DETAILS:
 - URL: {url}

@@ -1,34 +1,67 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
-from master import stream_bajrang_response
+from master import stream_altair_response, groq_client
 from image_analyzer import analyze_image_stream, encode_file_to_base64
 import requests
 import asyncio
 import time
 import os
 from dotenv import load_dotenv
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 load_dotenv()
 
-app = FastAPI(title="BAJRANG AI CORE")
+# Initialize Rate Limiter
+limiter = Limiter(key_func=get_remote_address)
+app = FastAPI(title="TIFLO AI CORE")
+app.state.limiter = limiter
+
+# Rate limit exception handler - security first!
+@app.exception_handler(RateLimitExceeded)
+async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    print("🚨 [SECURITY RATE LIMIT] Rate limit triggered for remote address:", get_remote_address(request))
+    return JSONResponse(
+        status_code=429,
+        content={"error": "Speed kam kar bhai, Tiflo AI thak raha hai."}
+    )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://triflo.in",
+        "https://www.triflo.in",
+        "https://mancho.pages.dev",
+        "http://localhost:5500", 
+        "http://127.0.0.1:5500"
+    ], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+class FeedbackRequest(BaseModel):
+    user_id: str
+    chat_id: str
+    feedback_type: str
+    feedback_text: str = ""
+    last_user_message: str = ""
+    last_ai_message: str = ""
+
 class ChatRequest(BaseModel):
     message: str
     history: list = []
     user_id: str = "guest"
+    user_email: str = ""     # Verified email from Clerk — used for God Mode
     image_data: str = ""   # base64 data URI or image URL (optional)
     mode: str = "default"  # active AI mode
+    use_openrouter: bool = False
+    is_incognito: bool = False
+    location: str = ""
 
 
 def save_to_firebase_bg(user_message, ai_response, intent, user_id):
@@ -57,19 +90,47 @@ def save_to_firebase_bg(user_message, ai_response, intent, user_id):
         print(f"⚠️ Firebase error: {e}")
 
 
+def save_feedback_to_firebase_bg(user_id, chat_id, feedback_type, feedback_text, last_user_msg, last_ai_msg):
+    api_key = os.getenv("FIREBASE_API_KEY")
+    project_id = os.getenv("FIREBASE_PROJECT_ID")
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/feedbacks?key={api_key}"
+
+    data = {
+        "fields": {
+            "user_id":           {"stringValue": str(user_id)},
+            "chat_id":           {"stringValue": str(chat_id)},
+            "feedback_type":     {"stringValue": str(feedback_type)},
+            "feedback_text":     {"stringValue": str(feedback_text)},
+            "last_user_message": {"stringValue": str(last_user_msg)},
+            "last_ai_message":   {"stringValue": str(last_ai_msg)},
+            "timestamp":         {"stringValue": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        }
+    }
+
+    try:
+        response = requests.post(url, json=data, timeout=5)
+        if response.status_code == 200:
+            print(f"✅ Feedback saved to Firebase [user: {user_id}]")
+        else:
+            print(f"⚠️ Firebase feedback {response.status_code}: {response.text[:100]}")
+    except Exception as e:
+        print(f"⚠️ Firebase feedback save error: {e}")
+
+
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
-    print(f"📥 [REQUEST] Mode: {request.mode} | User: {request.user_id} | Msg: {request.message[:50]}...")
+@limiter.limit("15/minute")
+async def chat_stream(request: Request, chat_req: ChatRequest):
+    print(f"📥 [REQUEST] Mode: {chat_req.mode} | User: {chat_req.user_id} | Msg: {chat_req.message[:50]}... {'🕵️ [INCOGNITO]' if chat_req.is_incognito else ''}")
     accumulated = []
 
     async def event_generator():
         # ── Vision path: image attached ───────────────────────────────────
-        if request.image_data:
-            is_founder = request.user_id == os.getenv("FOUNDER_USER_ID", "piyush_ceo")
+        if chat_req.image_data:
+            is_founder = chat_req.user_id == os.getenv("FOUNDER_USER_ID", "piyush_ceo")
             async for chunk in analyze_image_stream(
-                image_data=request.image_data,
-                user_question=request.message,
-                conversation_history=request.history,
+                image_data=chat_req.image_data,
+                user_question=chat_req.message,
+                conversation_history=chat_req.history,
                 is_founder=is_founder
             ):
                 if chunk != "data: [DONE]\n\n":
@@ -78,17 +139,21 @@ async def chat_stream(request: ChatRequest):
                 yield chunk
 
             full_response = "".join(accumulated).replace('\\n', '\n')
-            loop = asyncio.get_event_loop()
-            loop.run_in_executor(None, save_to_firebase_bg,
-                request.message, full_response, "VISION", request.user_id)
+            if not chat_req.is_incognito:
+                loop = asyncio.get_event_loop()
+                loop.run_in_executor(None, save_to_firebase_bg,
+                    chat_req.message, full_response, "VISION", chat_req.user_id)
             return
 
         # ── Text path: normal chat ──────────────────────────────────────
-        async for chunk in stream_bajrang_response(
-            request.message,
-            request.history,
-            user_id=request.user_id,
-            mode=request.mode
+        async for chunk in stream_altair_response(
+            chat_req.message,
+            chat_req.history,
+            user_id=chat_req.user_id,
+            user_email=chat_req.user_email,
+            mode=chat_req.mode,
+            use_openrouter=chat_req.use_openrouter,
+            location=chat_req.location
         ):
             if chunk != "data: [DONE]\n\n":
                 # Collect for Firebase save
@@ -98,12 +163,13 @@ async def chat_stream(request: ChatRequest):
 
         # After stream done, save to Firebase in background thread
         full_response = "".join(accumulated).replace('\\n', '\n')
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(
-            None,
-            save_to_firebase_bg,
-            request.message, full_response, "STREAMED", request.user_id
-        )
+        if not chat_req.is_incognito:
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(
+                None,
+                save_to_firebase_bg,
+                chat_req.message, full_response, "STREAMED", chat_req.user_id
+            )
 
     return StreamingResponse(
         event_generator(),
@@ -120,17 +186,20 @@ async def chat_stream(request: ChatRequest):
 async def chat(request: ChatRequest):
     try:
         full_text = ""
-        async for chunk in stream_bajrang_response(
+        async for chunk in stream_altair_response(
             request.message, 
             request.history, 
             request.user_id,
-            mode=request.mode
+            user_email=request.user_email,
+            mode=request.mode,
+            use_openrouter=request.use_openrouter
         ):
             if chunk.startswith("data: ") and "[DONE]" not in chunk:
                 full_text += chunk[6:].replace('\\n', '\n')
 
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, save_to_firebase_bg, request.message, full_text, "CHAT", request.user_id)
+        if not request.is_incognito:
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(None, save_to_firebase_bg, request.message, full_text, "CHAT", request.user_id)
         return {"response": full_text, "intent": "CHAT"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -144,7 +213,7 @@ async def health():
     h, m, s = uptime_s // 3600, (uptime_s % 3600) // 60, uptime_s % 60
     return {
         "status":  "online",
-        "engine":  "BAJRANG AI",
+        "engine":  "TIFLO AI",
         "version": "3.0-groq-streaming",
         "model":   "llama-3.3-70b-versatile",
         "vision":  "llama-4-scout-17b",
@@ -192,10 +261,61 @@ async def analyze_image_upload(
     )
 
 
+class MemoryExtractRequest(BaseModel):
+    user_message: str
+    ai_response: str
+    current_profile: dict = {}
+    current_facts: list = []
+
+@app.post("/memory/extract")
+async def extract_memory(request: MemoryExtractRequest):
+    import json
+    from groq import Groq
+    
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    client = Groq(api_key=groq_api_key)
+    
+    system_prompt = """You are a highly precise user-fact extractor. Output ONLY a valid JSON object.
+Analyze the latest user message and AI response, extract key personal facts or preferences about the user, and merge/update them with the current profile and facts list.
+
+RULES:
+- Clean up duplicate or contradictory facts.
+- Do not extract speculative facts. Only extract definite personal details (e.g. name, role, background, interests, key milestones).
+- Keep the JSON format EXACTLY like:
+{
+  "user_profile": {"name": "...", "role": "...", "background": "...", "interests": "..."},
+  "key_facts": ["fact 1", "fact 2"]
+}
+"""
+    user_prompt = f"""Current Profile: {json.dumps(request.current_profile)}
+Current Facts: {json.dumps(request.current_facts)}
+
+Latest Turn:
+User: {request.user_message}
+AI: {request.ai_response}
+"""
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+        result = json.loads(response.choices[0].message.content.strip())
+        print(f"🧠 [LOCAL MEMORY EXTRACT] Profile: {result.get('user_profile')}")
+        return result
+    except Exception as e:
+        print(f"⚠️ Memory extraction error: {e}")
+        return {"user_profile": request.current_profile, "key_facts": request.current_facts}
+
+
 @app.get("/stats")
 async def stats():
     return {
-        "engine":      "BAJRANG AI v3.0",
+        "engine":      "TIFLO AI v3.0",
         "provider":    "Groq Cloud",
         "model":       "llama-3.1-8b-instant",
         "capabilities": {
@@ -209,9 +329,41 @@ async def stats():
     }
 
 
+@app.post("/voice/transcribe")
+async def voice_transcribe(file: UploadFile = File(...)):
+    """
+    Receives raw wav audio from browser Web Audio API and transcribes it in real-time
+    using Groq's lightning-fast Whisper Large V3 engine.
+    """
+    try:
+        contents = await file.read()
+        print(f"🎙️ Voice Engine: Received {len(contents)} bytes of audio. Forwarding to Groq Whisper...")
+        
+        # Call Groq audio transcription
+        transcription = groq_client.audio.transcriptions.create(
+            file=(file.filename, contents),
+            model="whisper-large-v3",
+            response_format="verbose_json"
+        )
+        print(f"🎙️ Voice Engine: Transcription success -> '{transcription.text}'")
+        return {"text": transcription.text}
+    except Exception as e:
+        print(f"⚠️ Voice Engine Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chat/feedback")
+async def chat_feedback(req: FeedbackRequest):
+    print(f"📥 [FEEDBACK] Type: {req.feedback_type} | User: {req.user_id} | Text: {req.feedback_text[:50]}...")
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, save_feedback_to_firebase_bg, 
+        req.user_id, req.chat_id, req.feedback_type, req.feedback_text, req.last_user_message, req.last_ai_message)
+    return {"status": "success", "message": "Feedback submitted successfully"}
+
+
 if __name__ == "__main__":
     import uvicorn
     import os
-    # Render port environment variable se uthayega, nahi toh default 8000
-    port = int(os.getenv("PORT", 8000))
+    # Hugging Face Spaces default port is 7860
+    port = int(os.getenv("PORT", 7860))
     uvicorn.run(app, host="0.0.0.0", port=port)

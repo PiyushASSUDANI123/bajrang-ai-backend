@@ -1,7 +1,7 @@
 """
-agents.py — Bajrang AI Tool Calling / Agent System
+agents.py — Tiflo AI Tool Calling / Agent System
 ====================================================
-Gives Bajrang AI real tools it can USE — not just talk about.
+Gives Tiflo AI real tools it can USE — not just talk about.
 Each tool is a function the AI can invoke via Groq function calling.
 
 Tools:
@@ -9,7 +9,7 @@ Tools:
   - code_runner    : Execute Python code in a sandbox
   - memory_search  : Search past conversations
   - web_search     : Real-time internet search (wraps fast_ai)
-  - knowledge_search: Search Bajrang's knowledge base
+  - knowledge_search: Search Tiflo's knowledge base
 """
 
 import os
@@ -69,7 +69,7 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "memory_search",
-            "description": "Search Bajrang AI's memory for relevant past information, facts about Piyush, or the Assudani Group.",
+            "description": "Search Tiflo AI's memory for relevant past information, facts about Piyush, or the Assudani Group.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -79,6 +79,40 @@ TOOL_DEFINITIONS = [
                     }
                 },
                 "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Fetch real-time weather information for a specific city.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "The city to get weather for (e.g. 'Balotra', 'Mumbai', 'New York')."
+                    }
+                },
+                "required": ["city"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_crypto_price",
+            "description": "Fetch the real-time price of a cryptocurrency in USD (e.g., BTC, ETH, SOL).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "coin": {
+                        "type": "string",
+                        "description": "The cryptocurrency symbol (e.g., 'BTC', 'ETH', 'SOL', 'DOGE')."
+                    }
+                },
+                "required": ["coin"]
             }
         }
     }
@@ -148,6 +182,37 @@ def _tool_memory_search(query: str, user_id: str = "guest") -> str:
         return f"Memory search error: {e}"
 
 
+def _tool_get_weather(city: str) -> str:
+    """Fetch real-time weather information for a specific city via wttr.in."""
+    try:
+        import requests
+        print(f"🔧 Tool Execution: Fetching weather for '{city}'...")
+        res = requests.get(f"https://wttr.in/{city}?format=3", timeout=5)
+        if res.status_code == 200:
+            return f"Weather in {city}: {res.text.strip()}"
+        return f"Failed to get weather for {city} (Status: {res.status_code})"
+    except Exception as e:
+        return f"Weather API error: {e}"
+
+
+def _tool_fetch_crypto_price(coin: str) -> str:
+    """Fetch real-time cryptocurrency USD price via Binance public ticker API."""
+    try:
+        import requests
+        symbol = coin.upper().strip()
+        print(f"🔧 Tool Execution: Fetching crypto rate for '{symbol}'...")
+        if not symbol.endswith("USDT"):
+            symbol = f"{symbol}USDT"
+        res = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}", timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            price = float(data.get("price", 0))
+            return f"Current price of {coin.upper()}: ${price:,.2f} USD (Source: Binance)"
+        return f"Failed to find crypto rate for '{coin}'. Make sure to use symbols like BTC, ETH, SOL, or DOGE."
+    except Exception as e:
+        return f"Crypto API error: {e}"
+
+
 # ── Main Agent Runner ────────────────────────────────────────
 async def run_agent(
     user_message: str,
@@ -177,11 +242,16 @@ async def run_agent(
         tool_calls = msg.tool_calls
 
         if not tool_calls:
-            # No tools needed — just stream the answer
+            # No tools needed — just stream the answer, preserving all formatting and newlines!
             content = msg.content or ""
-            for token in content.split():
-                yield f"data: {token} \n\n"
-                await asyncio.sleep(0.01)
+            i = 0
+            chunk_size = 4
+            while i < len(content):
+                chunk = content[i:i+chunk_size]
+                safe = chunk.replace('\n', '\\n')
+                yield f"data: {safe}\n\n"
+                await asyncio.sleep(0.005)
+                i += chunk_size
             return
 
         # Step 2: Execute tool calls
@@ -202,6 +272,10 @@ async def run_agent(
                 result = _tool_code_runner(fn_args.get("code", ""))
             elif fn_name == "memory_search":
                 result = _tool_memory_search(fn_args.get("query", ""), user_id)
+            elif fn_name == "get_weather":
+                result = _tool_get_weather(fn_args.get("city", ""))
+            elif fn_name == "fetch_crypto_price":
+                result = _tool_fetch_crypto_price(fn_args.get("coin", ""))
             else:
                 result = f"Unknown tool: {fn_name}"
 

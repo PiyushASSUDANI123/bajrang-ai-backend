@@ -22,8 +22,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Expose the port the app runs on (default 8000, can be overridden by PORT env)
-EXPOSE 8000
+# Expose the port the app runs on (Hugging Face default is 7860)
+EXPOSE 7860
 
 # Run the application
 # Using python api.py because api.py handles the uvicorn.run logic with dynamic port

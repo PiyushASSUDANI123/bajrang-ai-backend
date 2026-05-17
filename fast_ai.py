@@ -142,7 +142,7 @@ async def ask_live_ai_parallel(question, search_query):
 
     print(f"\n🧠 Feeding {len(combined_context)} chars of context to Llama3...\n")
 
-    final_prompt = f"""You are BAJRANG AI — a real-time intelligence engine.
+    final_prompt = f"""You are TIFLO AI — a real-time intelligence engine.
 Today: {time.strftime('%d %B %Y')}, {time.strftime('%H:%M')} IST
 
 Using ONLY the live data below, answer the user's question.
@@ -176,6 +176,21 @@ Answer (organized, direct, no disclaimers):"""
             temperature=0.1
         )
         ai_text = response.choices[0].message.content
+        
+        # Capture and append sources dynamically
+        sources = []
+        for r in search_results[:3]:
+            title = r.get('title') or 'Web Search Result'
+            url = r.get('href') or r.get('url')
+            if url:
+                sources.append((title, url))
+                
+        if sources:
+            sources_md = "\n\n---\n🌐 **Sources:**\n"
+            for title, url in sources:
+                sources_md += f"- [{title}]({url})\n"
+            ai_text += sources_md
+
         total_time = round(time.time() - start_time, 2)
         print(f"✅ Real-time response ready in {total_time}s")
         return ai_text

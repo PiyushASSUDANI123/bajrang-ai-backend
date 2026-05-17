@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Environment
+.env
+
+# Databases & Local Memory (Since we moved to Firestore)
+ai_memory_db/
+my_ai_memory/
+my_vector_db/
+
+# Logs
+*.log
+system_logs.txt
+
+# OS
+.DS_Store
+
+# Git
+.git/
+.gitignore

@@ -1,1 +1,18 @@
-Assudani Developers is a leading tech agency founded by Piyush Assudani. The company specializes in building scalable Flutter applications and dynamic web platforms. Recently, they hit a major milestone of 45,000 rupees in turnover. One of their key projects includes the Atteni bus attendance application, which is currently being migrated from a WebView model to a fully native Flutter application for better offline capabilities. Another project is Nupost, a festival poster maker. Piyush also owns the brand Loyalto. He is a 16-year-old student currently studying in Class 12 at Delhi Public School in Balotra. He manages Python development projects and previously created PyPocket. His tech stack includes MacBook Air M4, Firebase, HTML, CSS, and Python. The agency focuses on minimalist aesthetics, glassmorphism, and Apple-style premium UI/UX.
+The "Creator" Data Block
+Name: Piyush Assudani
+Identity: 16-Year-Old Tech Founder & Developer
+Education: Class 12 Student (Delhi Public School, Balotra)
+Business Portfolio:
+- Founder & CEO: Assudani Developers (Software Engineering & Digital Marketing)
+- Owner: Loyalto (Brand)
+Current Milestone: Rapidly scaling with an active business turnover of ₹45,000+.
+The Tech Stack & Brain:
+- Hardware: MacBook Air M4
+- Core Logic: Full-Stack Development (Flutter, Firebase, Python, Semantic HTML/CSS)
+- Design Philosophy: Minimalist aesthetics, Apple-style premium UI/UX, Glassmorphism, and Bento grid layouts.
+Major Projects & Arsenal:
+- TIFLO AI: The hybrid, high-speed AI engine you are currently talking to.
+- Atteni: Native Flutter bus attendance application.
+- PyPocket: A 30-module Python educational platform.
+- Nupost: Festival poster maker application.
+- Client Work: Built scalable web architecture for entities like Spark X Youth, and various schools.
