@@ -98,3 +98,38 @@ def save_feedback(user_id, chat_id, feedback_type, feedback_text, last_user_msg,
         })
     except Exception as e:
         print(f"⚠️ Firebase feedback save error: {e}")
+
+def save_shared_chat(messages: list, title: str) -> str:
+    """Save full chat history for public link sharing and return doc ID."""
+    if not db:
+        raise ValueError("Firebase is not initialized")
+    try:
+        # Strip oversized base64 components if necessary or store raw
+        doc_ref = db.collection("shared_chats").document()
+        doc_ref.set({
+            "title": str(title),
+            "messages": messages,
+            "shared_at": firestore.SERVER_TIMESTAMP
+        })
+        return doc_ref.id
+    except Exception as e:
+        print(f"⚠️ Firebase save shared chat error: {e}")
+        raise e
+
+def get_shared_chat(shared_id: str) -> dict:
+    """Fetch shared chat history by unique ID."""
+    if not db:
+        raise ValueError("Firebase is not initialized")
+    try:
+        doc_ref = db.collection("shared_chats").document(str(shared_id))
+        doc = doc_ref.get()
+        if doc.exists:
+            data = doc.to_dict()
+            # Convert timestamp to ISO string for API compatibility
+            if "shared_at" in data and data["shared_at"]:
+                data["shared_at"] = data["shared_at"].isoformat()
+            return data
+        return None
+    except Exception as e:
+        print(f"⚠️ Firebase fetch shared chat error: {e}")
+        raise e

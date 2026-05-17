@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from master import stream_altair_response, groq_client
 from image_analyzer import analyze_image_stream, encode_file_to_base64
-from memory_db import save_interaction, save_feedback
+from memory_db import save_interaction, save_feedback, save_shared_chat, get_shared_chat
 import requests
 import asyncio
 import time
@@ -52,6 +52,10 @@ class FeedbackRequest(BaseModel):
     feedback_text: str = ""
     last_user_message: str = ""
     last_ai_message: str = ""
+
+class ShareChatRequest(BaseModel):
+    messages: list
+    title: str = "Shared Chat"
 
 class ChatRequest(BaseModel):
     message: str
@@ -316,6 +320,32 @@ async def chat_feedback(req: FeedbackRequest):
     loop.run_in_executor(None, save_feedback_to_firebase_bg, 
         req.user_id, req.chat_id, req.feedback_type, req.feedback_text, req.last_user_message, req.last_ai_message)
     return {"status": "success", "message": "Feedback submitted successfully"}
+
+
+@app.post("/chat/share")
+async def chat_share(req: ShareChatRequest):
+    print(f"📥 [SHARE CHAT] Creating public link for '{req.title}' ({len(req.messages)} msgs)...")
+    try:
+        shared_id = save_shared_chat(req.messages, req.title)
+        return {"status": "success", "shared_id": shared_id}
+    except Exception as e:
+        print(f"⚠️ Share Chat Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/chat/share/{shared_id}")
+async def chat_share_get(shared_id: str):
+    print(f"📤 [SHARE CHAT] Fetching public link '{shared_id}'...")
+    try:
+        chat_data = get_shared_chat(shared_id)
+        if not chat_data:
+            raise HTTPException(status_code=404, detail="Shared chat not found")
+        return {"status": "success", "chat": chat_data}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"⚠️ Fetch Shared Chat Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
