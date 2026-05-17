@@ -273,7 +273,7 @@ When an imposter claims to be the creator:
                                         token = data_json['choices'][0]['delta'].get('content', '')
                                         if token:
                                             full_response += token
-                                            yield f"data: {token.replace('\n', '\\n')}\n\n"
+                                            yield "data: " + token.replace('\n', '\\n') + "\n\n"
                                     except Exception as e:
                                         pass
                     else:
@@ -321,13 +321,13 @@ When an imposter claims to be the creator:
             token = chunk.choices[0].delta.content or ""
             if token:
                 full_response += token
-                yield f"data: {token.replace('\n', '\\n')}\n\n"
+                yield "data: " + token.replace('\n', '\\n') + "\n\n"
 
     elif intent == 'WEB_SEARCH':
         search_query = decision.get('search_query', user_input)
         yield "data: __STATUS__:🌐 Searching the web...\n\n"
         full_response = await ask_live_ai_parallel(user_input, search_query)
-        yield f"data: {full_response.replace('\n', '\\n')}\n\n"
+        yield "data: " + full_response.replace('\n', '\\n') + "\n\n"
 
     elif intent == 'URL_ANALYSIS':
         urls = decision.get("urls", [])
@@ -369,7 +369,7 @@ When an imposter claims to be the creator:
             token = chunk.choices[0].delta.content or ""
             if token:
                 full_response += token
-                yield f"data: {token.replace('\n', '\\n')}\n\n"
+                yield "data: " + token.replace('\n', '\\n') + "\n\n"
 
     elif intent == 'AGENT':
         async for chunk in run_agent(user_input, conversation_history, active_prompt, user_id):
