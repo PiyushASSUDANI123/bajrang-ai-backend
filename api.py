@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from master import stream_altair_response, groq_client
 from image_analyzer import analyze_image_stream, encode_file_to_base64
-from memory_db import save_interaction, save_feedback, save_shared_chat, get_shared_chat
+from memory_db import save_interaction, save_feedback, save_shared_chat, get_shared_chat, get_all_chats
 import requests
 import asyncio
 import time
@@ -69,9 +69,22 @@ class ChatRequest(BaseModel):
     location: str = ""
 
 
-def save_to_firebase_bg(user_message, ai_response, intent, user_id):
+def get_client_ip(request: Request) -> str:
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0].strip()
+    cf_connecting_ip = request.headers.get("cf-connecting-ip")
+    if cf_connecting_ip:
+        return cf_connecting_ip.strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "unknown"
+
+
+def save_to_firebase_bg(user_message, ai_response, intent, user_id, user_email="", user_ip="", user_location="", model="lite", mode="default"):
     """Fire-and-forget Firebase save — runs in thread, never blocks API."""
-    save_interaction(user_id, user_message, ai_response, intent)
+    save_interaction(user_id, user_message, ai_response, intent, user_email, user_ip, user_location, model, mode)
 
 
 def save_feedback_to_firebase_bg(user_id, chat_id, feedback_type, feedback_text, last_user_msg, last_ai_msg):
@@ -83,6 +96,7 @@ def save_feedback_to_firebase_bg(user_id, chat_id, feedback_type, feedback_text,
 async def chat_stream(request: Request, chat_req: ChatRequest):
     print(f"📥 [REQUEST] Mode: {chat_req.mode} | User: {chat_req.user_id} | Msg: {chat_req.message[:50]}... {'🕵️ [INCOGNITO]' if chat_req.is_incognito else ''}")
     accumulated = []
+    client_ip = get_client_ip(request)
 
     async def event_generator():
         # ── Vision path: image attached ───────────────────────────────────
@@ -103,7 +117,8 @@ async def chat_stream(request: Request, chat_req: ChatRequest):
             if not chat_req.is_incognito:
                 loop = asyncio.get_event_loop()
                 loop.run_in_executor(None, save_to_firebase_bg,
-                    chat_req.message, full_response, "VISION", chat_req.user_id)
+                    chat_req.message, full_response, "VISION", chat_req.user_id,
+                    chat_req.user_email, client_ip, chat_req.location, "vision", chat_req.mode)
             return
 
         # ── Text path: normal chat ──────────────────────────────────────
@@ -129,7 +144,9 @@ async def chat_stream(request: Request, chat_req: ChatRequest):
             loop.run_in_executor(
                 None,
                 save_to_firebase_bg,
-                chat_req.message, full_response, "STREAMED", chat_req.user_id
+                chat_req.message, full_response, "STREAMED", chat_req.user_id,
+                chat_req.user_email, client_ip, chat_req.location,
+                "pro" if chat_req.use_openrouter else "lite", chat_req.mode
             )
 
     return StreamingResponse(
@@ -144,9 +161,10 @@ async def chat_stream(request: Request, chat_req: ChatRequest):
 
 # Legacy non-streaming endpoint (fallback)
 @app.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(req: Request, request: ChatRequest):
     try:
         full_text = ""
+        client_ip = get_client_ip(req)
         async for chunk in stream_altair_response(
             request.message, 
             request.history, 
@@ -160,7 +178,8 @@ async def chat(request: ChatRequest):
 
         if not request.is_incognito:
             loop = asyncio.get_event_loop()
-            loop.run_in_executor(None, save_to_firebase_bg, request.message, full_text, "CHAT", request.user_id)
+            loop.run_in_executor(None, save_to_firebase_bg, request.message, full_text, "CHAT", request.user_id,
+                                 request.user_email, client_ip, request.location, "pro" if request.use_openrouter else "lite", request.mode)
         return {"response": full_text, "intent": "CHAT"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -345,6 +364,21 @@ async def chat_share_get(shared_id: str):
         raise he
     except Exception as e:
         print(f"⚠️ Fetch Shared Chat Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/chats")
+async def admin_chats_get(req: Request):
+    auth_email = req.headers.get("X-User-Email", "")
+    if auth_email != "piyushassudani96@gmail.com":
+        raise HTTPException(status_code=403, detail="Forbidden: Admin access only.")
+    
+    print(f"🔑 [ADMIN] Secure fetching all conversation records for {auth_email}...")
+    try:
+        chats_data = get_all_chats()
+        return {"status": "success", "chats": chats_data}
+    except Exception as e:
+        print(f"⚠️ Admin Chat Fetch Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

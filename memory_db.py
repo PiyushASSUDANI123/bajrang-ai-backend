@@ -29,20 +29,25 @@ else:
     print("❌ FIREBASE_JSON secret is missing!")
     db = None
 
-def save_interaction(user_id, message, response, intent="CHIT_CHAT"):
-    """Save Q&A to Firestore using Admin SDK."""
+def save_interaction(user_id, message, response, intent="CHIT_CHAT", user_email="", user_ip="", user_location="", model="lite", mode="default"):
+    """Save detailed Q&A to Firestore with secure analytics."""
     if not db:
         return
     try:
         doc_ref = db.collection("chats").document()
         doc_ref.set({
             "user_id": str(user_id),
+            "user_email": str(user_email) if user_email else "guest",
+            "user_ip": str(user_ip) if user_ip else "unknown",
+            "user_location": str(user_location) if user_location else "unknown",
             "user_message": str(message),
             "ai_response": str(response),
             "intent": str(intent),
+            "model": str(model),
+            "mode": str(mode),
             "timestamp": firestore.SERVER_TIMESTAMP
         })
-        print(f"✅ Firebase saved [user: {user_id}]")
+        print(f"✅ Firebase saved detailed interaction [user: {user_id}]")
     except Exception as e:
         print(f"⚠️ Firebase save error: {e}")
 
@@ -133,3 +138,29 @@ def get_shared_chat(shared_id: str) -> dict:
     except Exception as e:
         print(f"⚠️ Firebase fetch shared chat error: {e}")
         raise e
+
+
+def get_all_chats():
+    """Retrieve all chats from Firestore, sorted by timestamp descending, for admin dashboard."""
+    if not db:
+        return []
+    try:
+        chats_ref = db.collection("chats")
+        query = chats_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).limit(150)
+        docs = query.stream()
+        results = []
+        for doc in docs:
+            data = doc.to_dict()
+            # Convert timestamp to ISO string for JSON serialization
+            if "timestamp" in data and data["timestamp"]:
+                try:
+                    data["timestamp"] = data["timestamp"].isoformat()
+                except Exception:
+                    data["timestamp"] = str(data["timestamp"])
+            else:
+                data["timestamp"] = ""
+            results.append(data)
+        return results
+    except Exception as e:
+        print(f"⚠️ Error fetching all chats: {e}")
+        return []
