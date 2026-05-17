@@ -88,12 +88,16 @@ async def stream_guru_response(
             if msg.get('role') in ('user', 'assistant'):
                 history_snippet += f"{msg['role'].upper()}: {msg['content'][:200]}\n"
 
+    subject_str = f"SUBJECT HINT: {subject_hint}" if subject_hint else ""
+    context_str = f"RECENT CONTEXT:\n{history_snippet}" if history_snippet else ""
+    web_str = f"LIVE SEARCH DATA (use this to be accurate):\n{web_context}" if web_context else ""
+
     user_prompt = f"""TOPIC TO TEACH: {topic}
 
 USER'S EXACT MESSAGE: {user_question}
-{f'SUBJECT HINT: {subject_hint}' if subject_hint else ''}
-{f'RECENT CONTEXT:\n{history_snippet}' if history_snippet else ''}
-{f'LIVE SEARCH DATA (use this to be accurate):\n{web_context}' if web_context else ''}
+{subject_str}
+{context_str}
+{web_str}
 
 Samjha is topic ko apne style mein. Sab kuch include karo (CRACK, MEMORY CODE, TRICK SHEET, EXAM BOMBS, BACKBENCHER TIP).
 Ek bhi section skip mat karo."""
