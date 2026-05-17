@@ -4,6 +4,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from master import stream_altair_response, groq_client
 from image_analyzer import analyze_image_stream, encode_file_to_base64
+from memory_db import save_interaction, save_feedback
 import requests
 import asyncio
 import time
@@ -66,59 +67,15 @@ class ChatRequest(BaseModel):
 
 def save_to_firebase_bg(user_message, ai_response, intent, user_id):
     """Fire-and-forget Firebase save — runs in thread, never blocks API."""
-    api_key = os.getenv("FIREBASE_API_KEY")
-    project_id = os.getenv("FIREBASE_PROJECT_ID")
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/chats?key={api_key}"
-
-    data = {
-        "fields": {
-            "user_id":      {"stringValue": str(user_id)},
-            "user_message": {"stringValue": str(user_message)},
-            "ai_response":  {"stringValue": str(ai_response)},
-            "intent":       {"stringValue": str(intent)},
-            "timestamp":    {"stringValue": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-        }
-    }
-
-    try:
-        response = requests.post(url, json=data, timeout=5)
-        if response.status_code == 200:
-            print(f"✅ Firebase saved [user: {user_id}]")
-        else:
-            print(f"⚠️ Firebase {response.status_code}: {response.text[:100]}")
-    except Exception as e:
-        print(f"⚠️ Firebase error: {e}")
+    save_interaction(user_id, user_message, ai_response, intent)
 
 
 def save_feedback_to_firebase_bg(user_id, chat_id, feedback_type, feedback_text, last_user_msg, last_ai_msg):
-    api_key = os.getenv("FIREBASE_API_KEY")
-    project_id = os.getenv("FIREBASE_PROJECT_ID")
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/feedbacks?key={api_key}"
-
-    data = {
-        "fields": {
-            "user_id":           {"stringValue": str(user_id)},
-            "chat_id":           {"stringValue": str(chat_id)},
-            "feedback_type":     {"stringValue": str(feedback_type)},
-            "feedback_text":     {"stringValue": str(feedback_text)},
-            "last_user_message": {"stringValue": str(last_user_msg)},
-            "last_ai_message":   {"stringValue": str(last_ai_msg)},
-            "timestamp":         {"stringValue": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-        }
-    }
-
-    try:
-        response = requests.post(url, json=data, timeout=5)
-        if response.status_code == 200:
-            print(f"✅ Feedback saved to Firebase [user: {user_id}]")
-        else:
-            print(f"⚠️ Firebase feedback {response.status_code}: {response.text[:100]}")
-    except Exception as e:
-        print(f"⚠️ Firebase feedback save error: {e}")
+    save_feedback(user_id, chat_id, feedback_type, feedback_text, last_user_msg, last_ai_msg)
 
 
 @app.post("/chat/stream")
-@limiter.limit("15/minute")
+@limiter.limit("100/minute")
 async def chat_stream(request: Request, chat_req: ChatRequest):
     print(f"📥 [REQUEST] Mode: {chat_req.mode} | User: {chat_req.user_id} | Msg: {chat_req.message[:50]}... {'🕵️ [INCOGNITO]' if chat_req.is_incognito else ''}")
     accumulated = []

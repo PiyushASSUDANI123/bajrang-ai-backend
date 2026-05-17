@@ -1,8 +1,8 @@
 """
-brain_loader.py — Bajrang AI Knowledge Base Indexer
+brain_loader.py — Tiflo AI Knowledge Base Indexer
 =====================================================
 Loads structured data (text files, FAQs, company docs) into ChromaDB.
-Run this once to "teach" Bajrang. Re-run whenever you update the data.
+Run this once to "teach" Tiflo. Re-run whenever you update the data.
 
 Usage:
     python brain_loader.py
@@ -13,36 +13,36 @@ import hashlib
 import time
 from rag_engine import add_to_knowledge_base, get_memory_stats
 
-# ── Bajrang's Core Knowledge (Hard-coded facts) ──────────────
-BAJRANG_CORE_KNOWLEDGE = [
+# ── Tiflo's Core Knowledge (Hard-coded facts) ──────────────
+TIFLO_CORE_KNOWLEDGE = [
     # Identity
-    "Bajrang AI is a proprietary intelligence engine built by Piyush Assudani, CEO of The Assudani Group. It is NOT ChatGPT, NOT Claude, NOT Gemini. It is an independent AI system.",
-    "Bajrang AI was built to serve as the primary AI interface for The Assudani Group and its clients.",
+    "Tiflo AI is a proprietary intelligence engine built by Piyush Assudani, CEO of The Assudani Group. It is NOT ChatGPT, NOT Claude, NOT Gemini. It is an independent AI system.",
+    "Tiflo AI was built to serve as the primary AI interface for The Assudani Group and its clients.",
 
     # About Piyush
     "Piyush Assudani is a 16-year-old tech entrepreneur and the CEO of Assudani Developers and The Assudani Group. He studies in Class 12 at Delhi Public School, Balotra, Rajasthan.",
     "Piyush Assudani's tech stack includes: MacBook Air M4, Python, FastAPI, Flutter, Firebase, HTML, CSS, JavaScript. He specializes in building premium web and mobile applications.",
-    "Piyush Assudani's projects include: Atteni (bus attendance app), Nupost (festival poster maker), PyPocket (Python IDE), Bajrang AI, Loyalto, Rainbow E-Smart School portal, SparxYouth platform.",
+    "Piyush Assudani's projects include: Atteni (bus attendance app), Nupost (festival poster maker), PyPocket (Python IDE), Tiflo AI, Loyalto, Rainbow E-Smart School portal, SparxYouth platform.",
 
     # The Assudani Group
     "The Assudani Group / Assudani Developers is a tech agency specializing in scalable Flutter applications, dynamic web platforms, and AI-powered products. Founded and led by Piyush Assudani.",
     "The Assudani Group recently hit a milestone of Rs 45,000 in turnover. The focus is on minimalist aesthetics, glassmorphism, and Apple-style premium UI/UX.",
 
-    # Bajrang AI Technical Details
-    "Bajrang AI's backend is built with FastAPI (Python). It uses Groq API for LLM inference with the LLaMA 3.1 model. The frontend is a single-file HTML/CSS/JS premium interface.",
-    "Bajrang AI uses ChromaDB as its vector database for RAG (Retrieval Augmented Generation). It has sentence-transformers for semantic embeddings.",
-    "Bajrang AI has two access levels: Guest (public access, general AI) and Founder (piyush_ceo — full access to private knowledge, business data, no restrictions).",
-    "Bajrang AI's frontend features: real-time streaming, voice input, chat history (local storage), markdown rendering with syntax highlighting, export chat, suggestion chips.",
+    # Tiflo AI Technical Details
+    "Tiflo AI's backend is built with FastAPI (Python). It uses Groq API for LLM inference with the LLaMA 3.1 model. The frontend is a single-file HTML/CSS/JS premium interface.",
+    "Tiflo AI uses ChromaDB as its vector database for RAG (Retrieval Augmented Generation). It has sentence-transformers for semantic embeddings.",
+    "Tiflo AI has two access levels: Guest (public access, general AI) and Founder (piyush_ceo — full access to private knowledge, business data, no restrictions).",
+    "Tiflo AI's frontend features: real-time streaming, voice input, chat history (local storage), markdown rendering with syntax highlighting, export chat, suggestion chips.",
 
     # Design Philosophy
-    "Bajrang AI's design follows the OpenClaw Design System V4. Key colors: pure black background (#000000), indigo-purple accent gradient (#6366f1 to #a855f7), Space Grotesk and Cabinet Grotesk fonts.",
+    "Tiflo AI's design follows the OpenClaw Design System V4. Key colors: pure black background (#000000), indigo-purple accent gradient (#6366f1 to #a855f7), Space Grotesk and Cabinet Grotesk fonts.",
     "The design philosophy of The Assudani Group: Premium over functional. Every product should feel like an Apple product — minimal, fast, beautiful.",
 
-    # FAQs about Bajrang AI
-    "What is Bajrang AI? Bajrang AI is an advanced AI assistant built by Piyush Assudani. It can answer questions, search the web in real-time, write code, and remember past conversations.",
-    "How is Bajrang AI different from ChatGPT? Bajrang AI is a custom AI product built by The Assudani Group. It has real-time web search, private/public memory segmentation, and is specifically designed for Indian users with Hinglish support.",
-    "Bajrang AI supports Hinglish — a mix of Hindi and English — naturally. It can respond in Hindi, English, or Hinglish depending on what the user uses.",
-    "Bajrang AI Lite vs Pro: Lite is the free tier. Pro is coming soon with advanced capabilities, faster responses, and priority access.",
+    # FAQs about Tiflo AI
+    "What is Tiflo AI? Tiflo AI is an advanced AI assistant built by Piyush Assudani. It can answer questions, search the web in real-time, write code, and remember past conversations.",
+    "How is Tiflo AI different from ChatGPT? Tiflo AI is a custom AI product built by The Assudani Group. It has real-time web search, private/public memory segmentation, and is specifically designed for Indian users with Hinglish support.",
+    "Tiflo AI supports Hinglish — a mix of Hindi and English — naturally. It can respond in Hindi, English, or Hinglish depending on what the user uses.",
+    "Tiflo AI Lite vs Pro: Lite is the free tier. Pro is coming soon with advanced capabilities, faster responses, and priority access.",
 ]
 
 def chunk_text(text: str, chunk_size: int = 400, overlap: int = 50) -> list:
@@ -79,19 +79,19 @@ def load_text_file(filepath: str, source_name: str):
     return count
 
 def load_all():
-    """Main loader — indexes everything into Bajrang's brain."""
+    """Main loader — indexes everything into Tiflo's brain."""
     print("\n" + "="*50)
-    print("🧠 BAJRANG AI — BRAIN LOADER")
+    print("🧠 TIFLO AI — BRAIN LOADER")
     print("="*50)
     print(f"Started at: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     total = 0
 
     # 1. Load hard-coded core knowledge
-    print(f"📚 Loading {len(BAJRANG_CORE_KNOWLEDGE)} core knowledge facts...")
-    for i, fact in enumerate(BAJRANG_CORE_KNOWLEDGE):
+    print(f"📚 Loading {len(TIFLO_CORE_KNOWLEDGE)} core knowledge facts...")
+    for i, fact in enumerate(TIFLO_CORE_KNOWLEDGE):
         doc_id = f"core_{hashlib.md5(fact.encode()).hexdigest()[:10]}"
-        add_to_knowledge_base(fact, source="Bajrang Core Knowledge", doc_id=doc_id)
+        add_to_knowledge_base(fact, source="Tiflo Core Knowledge", doc_id=doc_id)
         total += 1
 
     # 2. Load company_data.txt
