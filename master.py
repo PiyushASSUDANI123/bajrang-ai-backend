@@ -333,7 +333,7 @@ When an imposter claims to be the creator:
         urls = decision.get("urls", [])
         yield "data: __STATUS__:🔗 Analyzing links...\n\n"
         full_response = await analyze_multiple_urls(urls, user_input)
-        yield f"data: {full_response.replace('\n', '\\n')}\n\n"
+        yield "data: " + full_response.replace('\n', '\\n') + "\n\n"
 
     elif intent == 'TEACH':
         topic = extract_topic(user_input)
