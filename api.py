@@ -33,12 +33,12 @@ async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://triflo.in",
-        "https://www.triflo.in",
-        "https://mancho.pages.dev",
+        "https://tiflo.in",
+        "https://www.tiflo.in",
+        "https://mancho.pages.dev", 
         "http://localhost:5500", 
         "http://127.0.0.1:5500"
-    ], 
+    ],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

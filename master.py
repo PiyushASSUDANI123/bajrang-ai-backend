@@ -234,7 +234,7 @@ When an imposter claims to be the creator:
         headers = {
             "Authorization": f"Bearer {or_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://triflo.in",
+            "HTTP-Referer": "https://tiflo.in",
             "X-Title": "Tiflo AI"
         }
         
