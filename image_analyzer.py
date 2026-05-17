@@ -290,7 +290,7 @@ async def analyze_image_stream(
                                         data_json = json.loads(data_str)
                                         token = data_json['choices'][0]['delta'].get('content', '')
                                         if token:
-                                            yield f"data: {token.replace('\n', '\\n')}\n\n"
+                                            yield "data: " + token.replace('\n', '\\n') + "\n\n"
                                     except Exception:
                                         pass
                     else:
@@ -339,7 +339,7 @@ Structure your findings beautifully with bullet points and bold terms.
             for chunk in stream:
                 token = chunk.choices[0].delta.content or ""
                 if token:
-                    yield f"data: {token.replace('\n', '\\n')}\n\n"
+                    yield "data: " + token.replace('\n', '\\n') + "\n\n"
             print(f"✅ PDF analyzed in {round(time.time() - start, 2)}s")
         except Exception as e:
             yield f"data: ⚠️ PDF analysis failed: {str(e)[:100]}\n\n"
@@ -380,7 +380,7 @@ Structure your findings beautifully with bullet points and bold terms.
             for chunk in stream:
                 token = chunk.choices[0].delta.content or ""
                 if token:
-                    yield f"data: {token.replace('\n', '\\n')}\n\n"
+                    yield "data: " + token.replace('\n', '\\n') + "\n\n"
             print(f"✅ Text file analyzed in {round(time.time() - start, 2)}s")
         except Exception as e:
             yield f"data: ⚠️ Text analysis failed: {str(e)[:100]}\n\n"
@@ -463,7 +463,7 @@ FORMAT:
                                         data_json = json.loads(data_str)
                                         token = data_json['choices'][0]['delta'].get('content', '')
                                         if token:
-                                            yield f"data: {token.replace('\n', '\\n')}\n\n"
+                                            yield "data: " + token.replace('\n', '\\n') + "\n\n"
                                     except Exception:
                                         pass
                     else:
