@@ -2,7 +2,7 @@
 title: Tiflo AI Backend
 emoji: 🚀
 colorFrom: gray
-colorTo: black
+colorTo: gray
 sdk: docker
 pinned: false
 ---
