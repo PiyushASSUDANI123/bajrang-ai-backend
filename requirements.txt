@@ -12,3 +12,8 @@ numpy
 pytz
 duckduckgo_search
 slowapi
+opencv-python-headless
+Pillow
+pillow-heif
+pypdf
+pymupdf
