@@ -12,27 +12,38 @@ URL_PATTERN = re.compile(r'https?://[^\s<>"\')\]`]+', re.IGNORECASE)
 
 # Keywords that ALWAYS trigger WEB_SEARCH — no LLM needed for these
 WEB_SEARCH_KEYWORDS = [
-    'news', 'khabar', 'latest', 'today', 'aaj', 'current',
-    'stock', 'score', 'match', 'ipl', 'cricket', 'football',
-    'who won', 'live', 'abhi', 'right now', 'is now',
-    'kya hua', 'what happened', 'breaking',
+    'latest news', 'kya hua aaj', 'aaj ki khabar',
+    'today news', 'current news', 'breaking news',
+    'who won', 'live score', 'ipl score', 'cricket score', 'match score',
+    'stock price', 'share price', 'abhi kya chal raha',
+    'right now happening', 'what is happening now',
+]
+
+# Loose single-word triggers for WEB_SEARCH (only if standalone or at start of message)
+WEB_SEARCH_LOOSE = [
+    'news', 'khabar', 'latest', 'score', 'live',
 ]
 
 # Keywords that trigger TEACH (Guru Mode) — only for explicit teaching requests
 TEACH_KEYWORDS = [
-    'explain', 'samjhao', 'samjha', 'sikha', 'sikhao', 'padha',
-    'concept', 'chapter', 'theory', 'nahi samajh', 'samajh nahi',
-    'mujhe batao', 'easy mein', 'simple mein', 'desi mein',
-    'backbencher', 'guru mode', 'trick', 'shortcut', 'formula',
-    'definition', 'derive', 'proof', 'solve karo', 'step by step',
-    'basics', 'introduction to', 'beginner', 'fundamentals',
+    'explain me', 'explain karo', 'explain kar', 'mujhe samjhao', 'samjhao', 'samjha do',
+    'sikhao', 'mujhe sikha', 'padha do', 'padha', 'sikha',
+    'concept explain', 'concept kya hai', 'theory kya hai',
+    'nahi samajh aaya', 'samajh nahi aaya', 'mujhe nahi pata',
+    'easy mein batao', 'simple mein batao', 'desi mein samjhao',
+    'backbencher mode', 'guru mode', 'step by step explain',
+    'solve karo step', 'solve step by step',
+    'kaise karte hain', 'basics samjhao', 'introduction to', 'fundamentals of',
+    'beginner guide', 'for beginners',
 ]
 
 # Keywords that route to AGENT (Autonomous Agent with custom tools)
 AGENT_KEYWORDS = [
-    'calculate', 'run code', 'execute', 'solve math', 'math',
-    'crypto', 'bitcoin', 'btc', 'eth', 'solana', 'doge', 'rate', 'price',
-    'weather', 'mausam', 'temperature', 'rain', 'barish'
+    'calculate', 'run code', 'execute code', 'solve math', 'compute',
+    'run this', 'execute this',
+    'crypto price', 'bitcoin price', 'btc price', 'eth price', 'solana price', 'doge price',
+    'current price of', 'rate of bitcoin', 'rate of btc',
+    'weather in', 'mausam in', 'temperature in', 'will it rain in',
 ]
 
 # Keywords for GREETINGS / CHIT_CHAT fast-path
@@ -61,9 +72,15 @@ def _url_check(user_prompt: str):
 
 def _keyword_check(user_prompt):
     """Fast keyword-based router — bypasses LLM for obvious web/teach/agent queries."""
-    lower = user_prompt.lower()
+    lower = user_prompt.lower().strip()
+    word_count = len(lower.split())
 
-    # Check TEACH first (more specific intent)
+    # Short messages (≤3 words) skip aggressive keyword matching — let LLM decide.
+    # This prevents "what's the math" or "nice trick" from mis-routing.
+    if word_count <= 3:
+        return None
+
+    # Check TEACH first (phrase-level matching — more specific intent)
     for kw in TEACH_KEYWORDS:
         if kw in lower:
             print(f"📚 Keyword match '{kw}' → TEACH (Guru Mode)")
@@ -73,7 +90,7 @@ def _keyword_check(user_prompt):
                 "search_query": ""
             }
 
-    # Check AGENT (Autonomous loop weather, crypto, math, code)
+    # Check AGENT (explicit action + subject phrases)
     for kw in AGENT_KEYWORDS:
         if kw in lower:
             print(f"🔧 Keyword match '{kw}' → AGENT (Autonomous Agent)")
@@ -83,7 +100,7 @@ def _keyword_check(user_prompt):
                 "search_query": ""
             }
 
-    # Then check WEB_SEARCH
+    # Check WEB_SEARCH — phrase-level first
     for kw in WEB_SEARCH_KEYWORDS:
         if kw in lower:
             print(f"⚡ Keyword match '{kw}' → WEB_SEARCH (no LLM needed)")
@@ -92,6 +109,18 @@ def _keyword_check(user_prompt):
                 "reason": f"Keyword '{kw}' matched",
                 "search_query": user_prompt
             }
+
+    # Loose single-word WEB_SEARCH triggers — only if the word is standalone or at start
+    words = lower.split()
+    for kw in WEB_SEARCH_LOOSE:
+        if words[0] == kw or (len(words) > 1 and words[1] == kw):
+            print(f"⚡ Loose keyword '{kw}' at start → WEB_SEARCH")
+            return {
+                "intent": "WEB_SEARCH",
+                "reason": f"Loose keyword '{kw}' matched at start",
+                "search_query": user_prompt
+            }
+
     return None
 
 
@@ -136,33 +165,52 @@ def ai_router(user_prompt, conversation_history=[]):
     for msg in conversation_history[-4:]:
         context_snippet += f"{msg['role'].upper()}: {msg['content']}\n"
 
-    system_prompt = f"""You are a high-speed intent classifier. Output ONLY raw JSON.
+    system_prompt = f"""You are a precise intent classifier for an AI assistant. Output ONLY raw JSON. No markdown, no explanation.
 
-INTENT RULES:
-1. LOCAL_DB     → Questions about Piyush Assudani, Assudani Group, personal business data, Tiflo AI itself.
-2. WEB_SEARCH   → News, scores, current events, general web search.
-3. AGENT        → Math calculations, running/debugging code, executing Python, checking crypto rates (e.g. BTC, ETH), fetching weather using tools.
-4. URL_ANALYSIS → When the user explicitly asks to read, analyze, scrape, summarize, or extract information from one or more provided URLs.
-5. CHIT_CHAT    → Greetings, opinions, general conversation, writing help, explanations (no math/code execution needed).
+INTENT DEFINITIONS — Read carefully before classifying:
 
-RULES:
-- Fix typos automatically in search_query.
-- Resolve pronouns using context.
-- When in doubt between WEB_SEARCH and CHIT_CHAT → choose WEB_SEARCH.
-- When user asks to CALCULATE, RUN CODE, check CRYPTO RATES, or check WEATHER → always choose AGENT.
-- When user provides a URL AND asks a specific question about it, choose URL_ANALYSIS.
-- Output ONLY JSON, no markdown, no explanation.
+1. CHIT_CHAT (DEFAULT):
+   - Any general question, explanation request, concept query, opinion, advice, writing help, coding help, language/grammar, life advice, creative request, or casual conversation.
+   - This is the MOST COMMON intent. Use it for ANY message that does not clearly fit the others below.
+   - Examples: "what is Python?", "explain gravity", "write me a poem", "kya lagta hai?", "mujhe code samjhao", "what should I do?", "difference between X and Y", "how does X work?"
+
+2. WEB_SEARCH:
+   - ONLY for real-time / live information that changes daily: breaking news, live scores, today's stock prices, current events.
+   - Do NOT use for general knowledge questions. "What is the capital of France?" is CHIT_CHAT, not WEB_SEARCH.
+   - Examples: "aaj IPL mein kaun jeeta?", "latest news about AI", "current BTC price"
+
+3. AGENT:
+   - ONLY for explicit tool use: executing code, calculating a math expression, checking live crypto/stock price, real-time weather.
+   - Do NOT use for explaining concepts. "How does a for loop work?" is CHIT_CHAT, not AGENT.
+   - Examples: "calculate 234 * 567", "run this Python code", "BTC price abhi kya hai", "Delhi weather right now"
+
+4. LOCAL_DB:
+   - Questions specifically about Piyush Assudani, Assudani Group, Tiflo AI's own features/team/history.
+   - Examples: "who is Piyush?", "tell me about Tiflo AI", "Assudani Group kya hai?"
+
+5. URL_ANALYSIS:
+   - ONLY when the user provides a URL AND asks something about its content.
+   - Examples: "summarize this link: https://...", "read this article and explain"
+
+CRITICAL RULES:
+- CHIT_CHAT is the DEFAULT. When in doubt → CHIT_CHAT.
+- Do NOT choose WEB_SEARCH for general knowledge, explanations, or "how does X work" questions.
+- Do NOT choose AGENT unless the user is clearly asking to RUN or CALCULATE something right now.
+- Fix typos in search_query. Resolve pronouns using context.
 
 EXAMPLES:
-{{"intent": "WEB_SEARCH", "reason": "weather query", "search_query": "Balotra weather today temperature"}}
-{{"intent": "WEB_SEARCH", "reason": "latest news", "search_query": "India news today"}}
-{{"intent": "CHIT_CHAT", "reason": "greeting", "search_query": ""}}
-{{"intent": "LOCAL_DB", "reason": "founder info", "search_query": ""}}
-{{"intent": "AGENT", "reason": "math calculation", "search_query": ""}}
-{{"intent": "AGENT", "reason": "code execution", "search_query": ""}}
-{{"intent": "URL_ANALYSIS", "reason": "summarize link", "search_query": ""}}
+{"intent": "CHIT_CHAT", "reason": "general question", "search_query": ""}
+{"intent": "CHIT_CHAT", "reason": "explanation request", "search_query": ""}
+{"intent": "CHIT_CHAT", "reason": "coding help", "search_query": ""}
+{"intent": "CHIT_CHAT", "reason": "opinion/advice", "search_query": ""}
+{"intent": "WEB_SEARCH", "reason": "live score query", "search_query": "IPL 2025 today match score"}
+{"intent": "WEB_SEARCH", "reason": "breaking news", "search_query": "India news today"}
+{"intent": "AGENT", "reason": "math calculation", "search_query": ""}
+{"intent": "AGENT", "reason": "live crypto price", "search_query": ""}
+{"intent": "LOCAL_DB", "reason": "founder info", "search_query": ""}
+{"intent": "URL_ANALYSIS", "reason": "user provided URL with question", "search_query": ""}
 
-CONTEXT:
+RECENT CONTEXT (last few turns):
 {context_snippet}
 """
 

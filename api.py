@@ -62,6 +62,7 @@ class ChatRequest(BaseModel):
     history: list = []
     user_id: str = "guest"
     user_email: str = ""     # Verified email from Clerk — used for God Mode
+    user_name: str = ""      # Display name from Clerk — used for personalized greeting
     image_data: str = ""   # base64 data URI or image URL (optional)
     mode: str = "default"  # active AI mode
     use_openrouter: bool = False
@@ -127,6 +128,7 @@ async def chat_stream(request: Request, chat_req: ChatRequest):
             chat_req.history,
             user_id=chat_req.user_id,
             user_email=chat_req.user_email,
+            user_name=chat_req.user_name,
             mode=chat_req.mode,
             use_openrouter=chat_req.use_openrouter,
             location=chat_req.location
