@@ -8,7 +8,7 @@ from collections import OrderedDict
 from groq import Groq
 from dotenv import load_dotenv
 from router import ai_router
-from fast_ai import ask_live_ai_parallel
+from fast_ai import ask_live_ai_parallel, generate_followups
 from teacher_engine import stream_guru_response, extract_topic, detect_subject
 from typing import AsyncGenerator
 from agents import run_agent
@@ -519,10 +519,26 @@ HOW TO RESPOND TO IMPOSTERS:
                 yield "data: " + token.replace('\n', '\\n') + "\n\n"
 
     elif intent == 'WEB_SEARCH':
+        import json as _json
         search_query = decision.get('search_query', user_input)
-        yield "data: __STATUS__:🌐 Searching the web...\n\n"
-        full_response = await ask_live_ai_parallel(user_input, search_query)
-        yield "data: " + full_response.replace('\n', '\\n') + "\n\n"
+        yield "data: __STATUS__:🔍 Searching the web...\n\n"
+        search_result = await ask_live_ai_parallel(user_input, search_query)
+        yield "data: __STATUS__:📝 Generating answer...\n\n"
+
+        ai_text  = search_result.get("text", "") if isinstance(search_result, dict) else search_result
+        sources  = search_result.get("sources", []) if isinstance(search_result, dict) else []
+        full_response = ai_text
+
+        yield "data: " + ai_text.replace('\n', '\\n') + "\n\n"
+
+        # Emit structured source cards → frontend renders as clickable citation cards
+        if sources:
+            yield "data: __SOURCES__:" + _json.dumps(sources, ensure_ascii=False) + "\n\n"
+
+        # Generate & emit follow-up question chips (runs after main answer)
+        followups = await generate_followups(user_input, ai_text)
+        if followups:
+            yield "data: __FOLLOWUPS__:" + _json.dumps(followups, ensure_ascii=False) + "\n\n"
 
     elif intent == 'URL_ANALYSIS':
         urls = decision.get("urls", [])
@@ -533,7 +549,8 @@ HOW TO RESPOND TO IMPOSTERS:
     elif intent == 'TEACH':
         topic = extract_topic(user_input)
         yield f"data: __STATUS__:🌐 Researching {topic}...\n\n"
-        web_context = await ask_live_ai_parallel(user_input, f"core concepts of {topic}")
+        _teach_result = await ask_live_ai_parallel(user_input, f"core concepts of {topic}")
+        web_context = _teach_result.get("text", "") if isinstance(_teach_result, dict) else _teach_result
         yield f"data: __STATUS__:📚 Building Elite Lesson...\n\n"
         async for chunk in stream_guru_response(topic, user_input, conversation_history, web_context=web_context):
             yield chunk

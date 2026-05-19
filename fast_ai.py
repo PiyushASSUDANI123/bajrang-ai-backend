@@ -146,6 +146,13 @@ async def ask_live_ai_parallel(question, search_query):
 Today: {time.strftime('%d %B %Y')}, {time.strftime('%H:%M')} IST
 
 Using ONLY the live data below, answer the user's question.
+Each source is tagged [Source 1], [Source 2], etc. in the data.
+
+CITATION RULES (CRITICAL):
+- When you state a fact from a source, add its number inline in brackets: e.g. "the price rose to $45,000 [1]" or "according to reports [2]..."
+- Use [1], [2], [3] etc. matching the source numbers in the data below.
+- Multiple sources for one fact: write [1][2]
+- Do NOT add a Sources or References section at the end. Citations will be rendered separately as cards.
 
 FORMAT RULES (strictly follow):
 - Lead with the direct answer in **bold**.
@@ -167,7 +174,7 @@ BANNED PHRASES (never say these):
 
 User Question: {question}
 
-Answer (organized, direct, no disclaimers):"""
+Answer (with inline [1][2] citations, no sources section at end):"""
 
     try:
         response = _groq.chat.completions.create(
@@ -176,28 +183,57 @@ Answer (organized, direct, no disclaimers):"""
             temperature=0.1
         )
         ai_text = response.choices[0].message.content
-        
-        # Capture and append sources dynamically
+
+        # Build structured source list — returned separately, NOT appended to text.
+        # master.py will emit these as __SOURCES__: SSE event for frontend card rendering.
         sources = []
-        for r in search_results[:3]:
-            title = r.get('title') or 'Web Search Result'
-            url = r.get('href') or r.get('url')
+        for i, r in enumerate(search_results[:4]):
+            title = r.get('title') or 'Web Result'
+            url = r.get('href') or r.get('url', '')
             if url:
-                sources.append((title, url))
-                
-        if sources:
-            sources_md = "\n\n---\n🌐 **Sources:**\n"
-            for title, url in sources:
-                sources_md += f"- [{title}]({url})\n"
-            ai_text += sources_md
+                sources.append({"id": i + 1, "title": title, "url": url})
 
         total_time = round(time.time() - start_time, 2)
         print(f"✅ Real-time response ready in {total_time}s")
-        return ai_text
+        return {"text": ai_text, "sources": sources}
 
     except Exception as e:
         print(f"⚠️ LLM Error: {e}")
-        return "There was an internal error communicating with Groq."
+        return {"text": "There was an internal error communicating with Groq.", "sources": []}
+
+
+async def generate_followups(question: str, answer: str) -> list:
+    """
+    Generates 3 short, relevant follow-up questions from a Q&A pair.
+    Runs after the main response — result is sent as __FOLLOWUPS__: SSE event.
+    """
+    prompt = f"""Based on this Q&A, generate exactly 3 short, specific follow-up questions the user might want to ask next.
+
+User asked: {question}
+AI answered: {answer[:600]}
+
+Rules:
+- Each question must be self-contained and specific
+- Keep each question under 12 words
+- Make them genuinely useful next steps or deeper dives
+- Output ONLY a JSON object like: {{"questions": ["Q1", "Q2", "Q3"]}}"""
+
+    try:
+        import json
+        response = _groq.chat.completions.create(
+            model=_GROQ_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=150,
+            response_format={"type": "json_object"}
+        )
+        raw = response.choices[0].message.content
+        parsed = json.loads(raw)
+        questions = parsed.get("questions", [])
+        return [str(q) for q in questions[:3]]
+    except Exception as e:
+        print(f"\u26a0\ufe0f Follow-ups generation failed: {e}")
+        return []
 
 
 if __name__ == "__main__":
