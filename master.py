@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import time
 import hashlib
 from functools import lru_cache
@@ -11,6 +12,47 @@ from fast_ai import ask_live_ai_parallel
 from teacher_engine import stream_guru_response, extract_topic, detect_subject
 from typing import AsyncGenerator
 from agents import run_agent
+
+# ── Backend Profanity Censor (Regex-based, 100% Reliable) ─────
+# Applies ONLY to the OpenRouter uncensored mode stream.
+# Model generates raw words; we censor middle letters before sending to client.
+_PROFANITY_MAP = [
+    # pattern (case-insensitive)  → replacement
+    (re.compile(r'\bfuck\b',       re.IGNORECASE), 'f**k'),
+    (re.compile(r'\bfucking\b',    re.IGNORECASE), 'f***ing'),
+    (re.compile(r'\bfucker\b',     re.IGNORECASE), 'f***er'),
+    (re.compile(r'\bfucked\b',     re.IGNORECASE), 'f***ed'),
+    (re.compile(r'\bshit\b',       re.IGNORECASE), 's**t'),
+    (re.compile(r'\bshitting\b',   re.IGNORECASE), 's***ing'),
+    (re.compile(r'\bbitch\b',      re.IGNORECASE), 'b***h'),
+    (re.compile(r'\bbitches\b',    re.IGNORECASE), 'b***hes'),
+    (re.compile(r'\basshole\b',    re.IGNORECASE), 'a**hole'),
+    (re.compile(r'\bbastard\b',    re.IGNORECASE), 'b***ard'),
+    (re.compile(r'\bdick\b',       re.IGNORECASE), 'd**k'),
+    (re.compile(r'\bcunt\b',       re.IGNORECASE), 'c**t'),
+    (re.compile(r'\bwhore\b',      re.IGNORECASE), 'w***e'),
+    (re.compile(r'\bslut\b',       re.IGNORECASE), 's**t'),
+    (re.compile(r'\bbullshit\b',   re.IGNORECASE), 'b***shit'),
+    (re.compile(r'\bprick\b',      re.IGNORECASE), 'p***k'),
+    (re.compile(r'\bcock\b',       re.IGNORECASE), 'c**k'),
+    (re.compile(r'\bdamn\b',       re.IGNORECASE), 'd**n'),
+    (re.compile(r'\bcrap\b',       re.IGNORECASE), 'c**p'),
+    (re.compile(r'\bbhenchod\b',   re.IGNORECASE), 'b*****d'),
+    (re.compile(r'\bmadarchod\b',  re.IGNORECASE), 'm*****d'),
+    (re.compile(r'\bchutiya\b',    re.IGNORECASE), 'c*****a'),
+    (re.compile(r'\brandi\b',      re.IGNORECASE), 'r***i'),
+    (re.compile(r'\bsaala\b',      re.IGNORECASE), 's***a'),
+    (re.compile(r'\bkamina\b',     re.IGNORECASE), 'k****a'),
+    (re.compile(r'\bharamzada\b',  re.IGNORECASE), 'h*******a'),
+    (re.compile(r'\bbc\b',         re.IGNORECASE), 'b*'),
+    (re.compile(r'\bmc\b',         re.IGNORECASE), 'm*'),
+]
+
+def _censor(text: str) -> str:
+    """Apply profanity filter — censors middle letters of offensive words."""
+    for pattern, replacement in _PROFANITY_MAP:
+        text = pattern.sub(replacement, text)
+    return text
 
 # ── Memory & Storage (Firebase Firestore) ──────────────────
 from memory_db import save_interaction, get_recent_context, add_to_knowledge
@@ -314,7 +356,8 @@ HOW TO RESPOND TO IMPOSTERS:
                                         token = data_json['choices'][0]['delta'].get('content', '')
                                         if token:
                                             full_response += token
-                                            yield "data: " + token.replace('\n', '\\n') + "\n\n"
+                                            censored = _censor(token)
+                                            yield "data: " + censored.replace('\n', '\\n') + "\n\n"
                                     except Exception as e:
                                         pass
                     else:
