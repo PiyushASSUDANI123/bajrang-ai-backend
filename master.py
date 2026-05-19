@@ -167,6 +167,33 @@ RULES:
 10. SINGLE THOUGHT (CRITICAL): Focus on one question at a time. Nail it, then move on.
 """
 
+# ── Technical vs Casual Query Scanner ────────────────────────
+# Used inside CHIT_CHAT to dynamically adjust temperature + prompt tone.
+_TECH_KEYWORDS = [
+    # Code / Programming
+    'code', 'program', 'function', 'algorithm', 'debug', 'error', 'syntax',
+    'class', 'object', 'loop', 'array', 'api', 'backend', 'frontend',
+    'database', 'sql', 'python', 'javascript', 'java', 'c++', 'html', 'css',
+    'git', 'docker', 'server', 'deploy', 'request', 'response', 'json',
+    'async', 'thread', 'memory', 'cache', 'stack', 'heap', 'pointer',
+    'script', 'terminal', 'bash', 'command', 'install', 'import', 'library',
+    # Math / Science
+    'calculate', 'equation', 'formula', 'derivative', 'integral', 'matrix',
+    'probability', 'statistics', 'theorem', 'proof', 'solve', 'math',
+    'physics', 'chemistry', 'biology', 'reaction', 'molecule',
+    # Engineering / Tech concepts
+    'circuit', 'voltage', 'current', 'resistance', 'signal', 'frequency',
+    'network', 'protocol', 'encryption', 'security', 'authentication',
+    'architecture', 'system', 'hardware', 'software', 'machine learning',
+    'neural', 'model', 'training', 'dataset', 'vector', 'tensor',
+]
+
+def _is_technical(text: str) -> bool:
+    """Returns True if the user query contains technical / code / math keywords."""
+    lower = text.lower()
+    return any(kw in lower for kw in _TECH_KEYWORDS)
+
+
 # ── Token-Saving Summarization Helper ────────────────────────
 def summarize_old_history_sync(messages_to_summarize: list) -> str:
     """
@@ -449,10 +476,40 @@ HOW TO RESPOND TO IMPOSTERS:
             # Insert just before the last user message
             messages.insert(-1, anti_repeat_block)
 
+        # ── Dynamic Temperature + Prompt based on query type ─────────────────
+        if _is_technical(user_input):
+            # Technical / Code / Math → low temp for precision, strict tone
+            chat_temperature = 0.2
+            tone_hint = {
+                'role': 'system',
+                'content': (
+                    "[QUERY TYPE: TECHNICAL]\n"
+                    "The user is asking a technical, code, or math question. "
+                    "Switch to PRECISION MODE: be surgically accurate, structured, and direct. "
+                    "Prioritize correctness over style. Use code blocks, exact syntax, and numbered steps. "
+                    "Do NOT add casual filler — get straight to the solution."
+                )
+            }
+        else:
+            # Casual / Conversational → high temp for personality, dost-mode
+            chat_temperature = 1.0
+            tone_hint = {
+                'role': 'system',
+                'content': (
+                    "[QUERY TYPE: CASUAL]\n"
+                    "The user is being casual or conversational. "
+                    "Switch to FRIEND MODE: be chill, witty, and natural. "
+                    "Match their vibe — if they're funny, be funnier. If they're brief, be brief. "
+                    "Ask a natural follow-up question to keep the conversation alive. "
+                    "Talk like a real dost, not a textbook."
+                )
+            }
+        messages.insert(-1, tone_hint)
+
         stream = groq_client.chat.completions.create(
             model=GROQ_MODEL,
             messages=messages,
-            temperature=0.9,  # raised from 0.7 — breaks boring safe-answer patterns
+            temperature=chat_temperature,
             stream=True
         )
         for chunk in stream:
